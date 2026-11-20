@@ -1,0 +1,20 @@
+Oriel includes Mozilla Rhino, relocated to dev.oriel.shadow.rhino and modified.
+
+Rhino is licensed under the Mozilla Public License 2.0 (LICENSE.txt); NOTICE.txt
+lists the other code it contains. The modifications are the patch series in
+rhino/patches of the Oriel source tree (fresh let/const bindings per loop
+iteration, spread arguments, class syntax, async functions and await, a size
+limit on BigInt arithmetic and parsing, and no CommonJS modules), applied to the
+upstream source below. They stay under MPL-2.0.
+
+Source: the upstream commit
+https://github.com/mozilla/rhino/tree/8527ebbf6d0b1599f819b5001af06e5dd9147013
+(Rhino 1.9.1). Obtain the Oriel source matching the distributed version,
+including the patch series and the package rewrite, from the project repository.
+
+The 1.20.1 Forge port compiles that patched source directly into the mod jar
+instead of shadow-relocating a separate artifact: every org.mozilla.javascript
+class was moved to dev.oriel.shadow.rhino and every org.mozilla.classfile class
+to dev.oriel.shadow.rhino.classfile, the optimizer, serialize and commonjs
+packages were dropped, and only Messages.properties and Messages_en.properties
+are shipped.

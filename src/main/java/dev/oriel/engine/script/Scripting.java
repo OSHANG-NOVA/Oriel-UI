@@ -23,8 +23,8 @@ public final class Scripting {
     /**
      * Whether a rhino provider is installed, so a host can fall back to rendering pages without scripts instead of
      * failing: a null runtime from {@code Host.createScriptRuntime} makes document loading skip every
-     * {@code <script>} element. The 1.20.1 port ships without the rhino and script-rhino modules, so this is false and
-     * pages render their markup and styles only.
+     * {@code <script>} element. The 1.20.1 port compiles Rhino 1.9.1 with Oriel's patches straight into the mod jar
+     * (relocated to {@code dev.oriel.shadow.rhino}), so this is true whenever the service file is on the class path.
      */
     public static boolean isRhinoAvailable() {
         return find() != null;

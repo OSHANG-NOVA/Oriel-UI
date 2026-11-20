@@ -122,10 +122,10 @@ public final class McHost implements Host {
 
     @Override
     public @Nullable ScriptRuntime createScriptRuntime(Document document) {
-        // The Rhino runtime (the rhino and script-rhino modules) is not part of the 1.20.1 port, so pages render their
-        // markup and styles without running scripts: Document.load treats a null runtime as "no scripts here" and
-        // runScript skips every script element. Returning null rather than letting Scripting.rhino() throw keeps every
-        // plain HTML/CSS page working (the example page, gallery, catalog, about, settings...).
+        // Rhino 1.9.1 with Oriel's six patches is compiled straight into this mod (dev.oriel.shadow.rhino), so pages
+        // normally get a runtime. The null branch stays as a safety net for a build that leaves the script runtime out:
+        // Document.load treats a null runtime as "no scripts here" and runScript skips every script element, which
+        // keeps every plain HTML/CSS page working instead of failing the whole document.
         return Scripting.isRhinoAvailable() ? Scripting.rhino().apply(document) : null;
     }
 
