@@ -1,21 +1,23 @@
-# Third-party reference sources: read-only, never built or shipped
-/reference/
-
-# Local agent instructions
-AGENTS.md
-Agent.md
-agent.md
-
-# Build outputs and tooling
-.gradle/
+# ---- Oriel 1.20.1 Forge port ----
+# Build outputs
 build/
 out/
-node_modules/
-/tools/h5ref/.cache/
-/tools/h5ref/chrome/
+.gradle/
 run/
+runs/
 *.class
 *.log
+*.hprof
+
+# Local scratch used while porting
+.bak/
+.decomp/
+源/
+errs.txt
+jar.txt
+tasks.txt
+run*.log
+mcmodsrepo/
 
 # IDE
 .idea/
@@ -29,15 +31,9 @@ run/
 .DS_Store
 Thumbs.db
 
-# From upstream Oriel
-*.ipr
-*.iws
-.idea/*
-!.idea/scopes
-eclipse
-runs/
-*.hprof
-.ws/
-# Rhino working copy, see rhino/README.md
-rhino/work/
+# Upstream keeps these out as well
+/reference/
+AGENTS.md
+Agent.md
+agent.md
 media/

@@ -1,0 +1,147 @@
+package dev.oriel.mod.internal.client;
+
+import dev.oriel.mod.client.OrielHud;
+import dev.oriel.mod.internal.CommandNames;
+import dev.oriel.mod.client.OrielScreen;
+import dev.oriel.mod.client.OrielScreens;
+
+import com.google.gson.JsonObject;
+import dev.oriel.kit.OrielKit;
+import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.builder.LiteralArgumentBuilder;
+import com.mojang.brigadier.builder.RequiredArgumentBuilder;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientPacketListener;
+import net.minecraft.network.chat.Component;
+
+import java.util.List;
+
+/**
+ * Client commands: {@code /oriel open <url> | showcase [page] | reload | canvastest}. Generic in the command source so
+ * each loader registers the same tree with its own client source type.
+ */
+public final class OrielClientCommands {
+    /** The client-side demo pages, under {@code assets/oriel/oriel/demo/} (the gallery is {@code index.html}). */
+    public static final List<String> DEMOS = CommandNames.DEMOS;
+    /**
+     * Demos run by the server ({@code OrielCommand}). The client forwards them itself: Fabric's client dispatcher
+     * claims every {@code /oriel ...} command once a client {@code oriel} node exists.
+     */
+    public static final List<String> SERVER_DEMOS = CommandNames.SERVER_DEMOS;
+    /** The show-off pages under {@code assets/oriel/oriel/showcase/}. */
+    public static final List<String> SHOWCASE = CommandNames.SHOWCASE;
+
+    /**
+     * The example page that ships with the port: plain HTML/CSS, no controller, opened by {@code /oriel example}.
+     */
+    public static final String EXAMPLE = "oriel:ui/example.html";
+
+    private OrielClientCommands() {}
+
+    public static <S> LiteralArgumentBuilder<S> create() {
+        // One demo entry: /oriel showcase opens the gallery home; its words are the kit presets, the show-off pages, the
+        // toast overlay, and the server's two demos (the server runs those: past this dispatcher, which would take them again).
+        LiteralArgumentBuilder<S> showcase = LiteralArgumentBuilder.<S>literal("showcase").executes(c -> later(() -> preset("gallery")));
+        for (String name : PRESETS) showcase.then(LiteralArgumentBuilder.<S>literal(name).executes(c -> later(() -> preset(name))));
+        for (String name : SHOWCASE) showcase.then(LiteralArgumentBuilder.<S>literal(name).executes(c -> later(() -> OrielScreens.open(showcaseUrl(name)))));
+        for (String name : CommandNames.BASICS) showcase.then(LiteralArgumentBuilder.<S>literal(name).executes(c -> later(() -> demo(basicsPage(name)))));
+        showcase.then(LiteralArgumentBuilder.<S>literal(CommandNames.TOAST).executes(c -> later(OrielClientCommands::toast)));
+        for (String name : SERVER_DEMOS) showcase.then(LiteralArgumentBuilder.<S>literal(name).executes(c -> askServer("oriel showcase " + name)));
+        LiteralArgumentBuilder<S> root = LiteralArgumentBuilder.<S>literal("oriel")
+                .then(LiteralArgumentBuilder.<S>literal("version").executes(c -> later(() -> McClient.systemMessage(
+                        Component.literal("Oriel UI runtime version: " + dev.oriel.mod.internal.platform.Services.PLATFORM.modVersion("oriel"))))))
+                .then(LiteralArgumentBuilder.<S>literal("open")
+                        .then(RequiredArgumentBuilder.<S, String>argument("url", StringArgumentType.greedyString())
+                                .executes(c -> {
+                                    String url = StringArgumentType.getString(c, "url");
+                                    return later(() -> OrielScreens.open(url));
+                                })))
+                .then(LiteralArgumentBuilder.<S>literal("settings").executes(c -> later(() -> OrielScreens.open(OrielKit.MODSETTINGS))))
+                .then(LiteralArgumentBuilder.<S>literal("about").executes(c -> later(() -> OrielScreens.open(OrielKit.ABOUT))))
+                .then(LiteralArgumentBuilder.<S>literal("example").executes(c -> later(() -> OrielScreens.open(EXAMPLE))))
+                .then(LiteralArgumentBuilder.<S>literal("reload").executes(c -> later(OrielClient::onResourceReload)));
+        if (dev.oriel.kit.ReferenceContent.available()) {
+            root.then(showcase);
+            root.then(LiteralArgumentBuilder.<S>literal("canvastest").executes(c -> later(() -> ReferenceClientCommands.canvas())));
+        } else {
+            root.then(LiteralArgumentBuilder.<S>literal("showcase").executes(c -> later(OrielClientCommands::noReference)));
+        }
+        return root;
+    }
+
+    /** The kit presets under {@code /oriel showcase}. */
+    public static final List<String> PRESETS = CommandNames.PRESETS;
+
+    /** Opens a preset page, or the gallery. */
+    public static void preset(String name) {
+        String page = name.equals("templates") ? "styles" : name;
+        if (!dev.oriel.kit.ReferenceContent.pageAvailable(page)) { noReference(); return; }
+        OrielScreens.open(OrielKit.page(page));
+    }
+
+    /** Opens a demo page; {@code hud} toggles the demo HUD overlay instead. */
+    public static void demo(String name) {
+        if (!dev.oriel.kit.ReferenceContent.available()) { noReference(); return; }
+        if (name.equals("hud")) {
+            if (OrielHud.isShown(OrielClient.DEMO_HUD)) OrielHud.hide(OrielClient.DEMO_HUD);
+            else OrielHud.show(OrielClient.DEMO_HUD);
+            return;
+        }
+        JsonObject data = new JsonObject();
+        data.addProperty("source", "client");
+        data.addProperty("player", Minecraft.getInstance().getUser().getName());
+        OrielScreens.open(demoUrl(name), data);
+    }
+
+    /**
+     * Toggles the interactive toast overlay (a HUD overlay with buttons: press T and click them). The answer comes
+     * back as a message and is echoed in chat.
+     */
+    public static void toast() {
+        if (!dev.oriel.kit.ReferenceContent.available()) { noReference(); return; }
+        if (OrielHud.isShown(OrielClient.DEMO_TOAST)) {
+            OrielHud.hide(OrielClient.DEMO_TOAST);
+            return;
+        }
+        OrielHud.show(OrielClient.DEMO_TOAST)
+                .onMessage("answer", value -> McClient.systemMessage(Component.literal("Rivet's request: " + value.getAsString())));
+    }
+
+    private static void noReference() {
+        McClient.systemMessage(Component.translatable("oriel.reference.unavailable"));
+    }
+
+    public static String demoUrl(String name) {
+        return "oriel:oriel/demo/" + name + ".html";
+    }
+
+    /** The page a {@link CommandNames#BASICS} word opens. */
+    private static String basicsPage(String word) {
+        return switch (word) {
+            case "livedata" -> "templates";
+            case "forms" -> "settings";
+            case "titlecard" -> "hud";
+            default -> word;
+        };
+    }
+
+    public static String showcaseUrl(String name) {
+        return "oriel:oriel/showcase/" + name + ".html";
+    }
+
+    /** Sends a command straight to the server, past the client dispatcher (which would take it again). */
+    private static int askServer(String command) {
+        ClientPacketListener connection = Minecraft.getInstance().getConnection();
+        // 1.20.1 has a dedicated sendCommand: it builds and signs the ServerboundChatCommandPacket, which now carries
+        // a timestamp, a salt, the argument signatures and a last-seen update (26.x's constructor took the string).
+        if (connection != null) connection.sendCommand(command);
+        return 1;
+    }
+
+    /** Runs after the chat screen that sent the command has closed (it would close a screen opened right away). */
+    private static int later(Runnable action) {
+        // 26.x named the client's task queue schedule(); in 1.20.1 Minecraft is an event loop and calls it execute().
+        Minecraft.getInstance().execute(action);
+        return 1;
+    }
+}

@@ -1,0 +1,261 @@
+<!doctype html>
+<html data-oriel-shell>
+<head>
+<title>Oriel 示例页 · Example</title>
+<link rel="stylesheet" href="ore.css">
+<style>
+/* 示例页：把引擎最常用的控件摆成一页，方便上手和自测。
+   data-oriel-shell 让纯 HTML/CSS 页面也拿到 Shell 的共享行为（跳页 / 关窗 / 主题 / 控件自动接线）。 */
+.page { padding: 8px; display: flex; flex-direction: column; gap: 8px; }
+
+.hero { position: relative; display: flex; align-items: center; gap: 10px; padding: 10px 12px; overflow: hidden;
+    background-image: radial-gradient(ellipse at 6% 40%, color-mix(in srgb, var(--o-accent) 24%, transparent), transparent 58%);
+    animation: m-pop var(--m-slow) var(--m-spring) both; }
+.hero .mark { flex: none; width: 36px; height: 36px; image-rendering: pixelated; }
+.hero .txt { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.hero .name { display: flex; align-items: baseline; gap: 8px; }
+.hero .name b { font-weight: normal; color: var(--o-text); white-space: nowrap; }
+.hero .tag { flex: none; padding: 0 4px; color: var(--o-accent-strong); border: 1px solid color-mix(in srgb, var(--o-accent) 55%, transparent); }
+.hero .line { color: var(--o-text-dim); line-height: 11px; }
+.hero .keys { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; color: var(--o-text-dim); }
+
+.card { min-width: 0; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px;
+    animation: m-pop var(--m-slow) var(--m-spring) both; }
+.card h3 { margin: 0; display: flex; align-items: center; gap: 5px; font-weight: normal; color: var(--o-text); }
+.card h3 .o-ico { -mc-tint: var(--o-accent-strong); }
+.card .hint { color: var(--o-text-faint); line-height: 10px; }
+
+.line { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.cap { flex: none; width: 62px; color: var(--o-text-faint); }
+
+/* 物品格：背包里那种 18x18 的凹槽，外面套一格高亮边框。 */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--min, 20px), 1fr)); gap: 4px; }
+.cell { display: flex; align-items: center; justify-content: center; width: 20px; height: 20px;
+    background: var(--o-well); border: 1px solid var(--o-line-strong); }
+.cell.hot { cursor: pointer; transition: border-color 120ms, box-shadow 160ms; }
+.cell.hot:hover { border-color: var(--o-accent); box-shadow: 0 0 0 1px var(--o-accent), 0 0 8px color-mix(in srgb, var(--o-accent) 45%, transparent); }
+
+.stat { display: flex; align-items: center; gap: 6px; }
+.stat b { font-weight: normal; color: var(--o-text); }
+.stat .num { color: var(--o-accent-strong); }
+
+.ctxbox { min-height: 34px; display: flex; align-items: center; justify-content: center; cursor: context-menu; }
+
+@media (max-width: 600px) { .page { padding: 4px; } .o-cols { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="o-app">
+<div class="o-window" id="example">
+
+  <div class="o-titlebar">
+    <div class="o-brand"><img src="../textures/ui/emblem.png"><b>Oriel</b><span>示例页</span></div>
+    <span class="o-crumb">example.html</span>
+    <div class="o-grow"></div>
+    <div class="ore-btn icon" data-action="theme" tabindex="0" title="切换明暗主题"><img class="o-ico" src="../textures/icons/sun.png"></div>
+    <div class="ore-btn icon" data-action="close" tabindex="0" title="关闭"><img class="o-ico" src="../textures/icons/close.png"></div>
+  </div>
+
+  <div class="o-tabbar">
+    <div class="o-apptabs">
+      <div data-go="gallery"><img class="o-ico" src="../textures/icons/home.png"><em>首页</em></div>
+      <div data-go="catalog"><img class="o-ico" src="../textures/icons/grid.png"><em>控件</em></div>
+      <div data-go="icons"><img class="o-ico" src="../textures/icons/star.png"><em>图标</em></div>
+      <div class="on"><img class="o-ico" src="../textures/icons/help.png"><em>示例</em></div>
+      <div data-go="about"><img class="o-ico" src="../textures/icons/crown.png"><em>关于</em></div>
+      <i class="m-indicator"></i>
+    </div>
+  </div>
+
+  <div class="o-body">
+  <div class="page o-scroll">
+
+    <div class="hero o-tile">
+      <img class="mark" src="../textures/ui/emblem.png">
+      <div class="txt">
+        <div class="name"><b class="o-h2">Oriel 示例页</b><span class="tag">1.20.1 Forge</span></div>
+        <span class="line">这一页只用 HTML + CSS 写成，没有一行 Java；交互由引擎自动接线。</span>
+        <div class="keys">
+          <span class="o-faint">再打开一次：</span>
+          <kbd>/oriel example</kbd>
+          <span class="o-faint">或</span>
+          <kbd>/oriel open oriel:ui/example.html</kbd>
+        </div>
+      </div>
+    </div>
+
+    <div class="o-cols">
+
+      <div class="card o-tile">
+        <h3><img class="o-ico" src="../textures/icons/mouse.png"><span>按钮 · Button</span></h3>
+        <span class="hint">五个变体，全部带点击波纹 m-ripple</span>
+        <div class="line">
+          <div class="ore-btn hero m-ripple" tabindex="0">主要行动</div>
+          <div class="ore-btn primary m-ripple" tabindex="0">确认</div>
+          <div class="ore-btn secondary m-ripple" tabindex="0">次要</div>
+          <div class="ore-btn destructive m-ripple" tabindex="0">删除</div>
+          <div class="ore-btn m-ripple" tabindex="0">普通</div>
+          <div class="ore-btn disabled">禁用</div>
+        </div>
+        <div class="line">
+          <div class="ore-btn primary m-ripple" tabindex="0"><img class="o-ico" src="../textures/icons/save.png"><span>带图标</span></div>
+          <div class="ore-btn icon m-ripple" tabindex="0" title="设置"><img class="o-ico" src="../textures/icons/gear.png"></div>
+          <div class="ore-btn icon m-ripple" tabindex="0" title="垃圾桶"><img class="o-ico" src="../textures/icons/trash.png"></div>
+          <div class="ore-btn hero big m-ripple" tabindex="0">大号按钮</div>
+        </div>
+      </div>
+
+      <div class="card o-tile">
+        <h3><img class="o-ico" src="../textures/icons/keyboard.png"><span>输入 · Input</span></h3>
+        <span class="hint">文本框支持中文输入法内联预编辑</span>
+        <div class="line"><span class="cap">文本</span><input class="ore-field" placeholder="输入点什么" style="width: 130px"><input class="ore-field" value="Steve" style="width: 90px"></div>
+        <div class="line"><span class="cap">下拉</span>
+          <div class="ore-select" style="width: 130px">
+            <div class="value">高画质</div>
+            <div class="menu">
+              <div class="option chosen">高画质</div>
+              <div class="option">均衡</div>
+              <div class="option">流畅</div>
+            </div>
+          </div>
+        </div>
+        <div class="line"><span class="cap">开关</span><span class="ore-toggle"></span><span class="ore-toggle on"></span><span class="o-faint">点一下试试</span></div>
+        <div class="line"><span class="cap">滑条</span><div class="ore-slider" style="max-width: 150px"><div class="track"></div><div class="fill" style="width: 60%"></div><div class="thumb" style="left: 60%"></div></div></div>
+      </div>
+
+      <div class="card o-tile">
+        <h3><img class="o-ico" src="../textures/icons/sliders.png"><span>进度 · Progress</span></h3>
+        <span class="hint">ore-progress 有默认 / gold / red / blue 四色</span>
+        <div class="line">
+          <div class="ore-progress" style="width: 80px"><div class="fill" style="width: 70%"></div></div>
+          <div class="ore-progress gold" style="width: 80px"><div class="fill" style="width: 45%"></div></div>
+          <div class="ore-progress red" style="width: 80px"><div class="fill" style="width: 20%"></div></div>
+          <div class="ore-progress blue" style="width: 80px"><div class="fill" style="width: 88%"></div></div>
+        </div>
+        <div class="line"><span class="cap">分段</span><div class="o-meter" style="--value: 0.64; width: 180px"><i></i></div></div>
+        <div class="line"><span class="cap">计数</span>
+          <div class="stat"><img class="o-ico" src="../textures/icons/bolt.png"><b>已加载配方</b><span class="o-num num" data-count="2235">0</span></div>
+        </div>
+      </div>
+
+      <div class="card o-tile">
+        <h3><img class="o-ico" src="../textures/icons/list.png"><span>标签与分段 · Tabs</span></h3>
+        <span class="hint">.ore-tabs 选中类 selected，.o-seg 选中类 on</span>
+        <div class="line">
+          <div class="ore-tabs">
+            <div class="ore-tab selected">视频</div>
+            <div class="ore-tab">音频</div>
+            <div class="ore-tab">控制</div>
+          </div>
+        </div>
+        <div class="line">
+          <div class="o-seg">
+            <span class="on"><img class="o-ico" src="../textures/icons/grid.png"><em>全部</em></span>
+            <span><img class="o-ico" src="../textures/icons/sword.png"><em>武器</em></span>
+            <span><img class="o-ico" src="../textures/icons/heart.png"><em>食物</em></span>
+          </div>
+        </div>
+        <div class="line">
+          <span class="o-chip hot">可点标签</span>
+          <span class="o-chip hot on">已选中</span>
+        </div>
+      </div>
+
+      <div class="card o-tile">
+        <h3><img class="o-ico" src="../textures/icons/chest.png"><span>物品与格子 · Item</span></h3>
+        <span class="hint">&lt;item id="minecraft:..."&gt; 直接渲染真实物品</span>
+        <div class="grid" style="--min: 20px">
+          <div class="cell"><item id="minecraft:diamond_pickaxe"></item></div>
+          <div class="cell"><item id="minecraft:netherite_sword"></item></div>
+          <div class="cell"><item id="minecraft:golden_apple"></item></div>
+          <div class="cell"><item id="minecraft:ender_pearl"></item></div>
+          <div class="cell"><item id="minecraft:diamond"></item></div>
+          <div class="cell"><item id="minecraft:emerald"></item></div>
+          <div class="cell"><item id="minecraft:redstone"></item></div>
+          <div class="cell"><item id="minecraft:coal"></item></div>
+          <div class="cell"><item id="minecraft:iron_ingot"></item></div>
+          <div class="cell"><item id="minecraft:gold_ingot"></item></div>
+          <div class="cell"><item id="minecraft:lapis_lazuli"></item></div>
+          <div class="cell"><item id="minecraft:amethyst_shard"></item></div>
+        </div>
+        <div class="line"><span class="cap">槽位</span>
+          <div class="cell"><slot></slot></div>
+          <div class="cell"><slot><item id="minecraft:bread"></item></slot></div>
+          <div class="cell"><slot><item id="minecraft:apple"></item></slot></div>
+        </div>
+      </div>
+
+      <div class="card o-tile">
+        <h3><img class="o-ico" src="../textures/icons/layers.png"><span>浮层 · Overlay</span></h3>
+        <span class="hint">气泡框 data-pop、右键菜单 data-context、抽屉 .o-drawer</span>
+        <div class="line" style="position: relative">
+          <div class="ore-btn m-ripple" data-pop="demo-pop" tabindex="0"><img class="o-ico" src="../textures/icons/filter.png"><span>打开气泡</span></div>
+          <div class="o-pop" id="demo-pop">
+            <span class="o-caps">显示</span>
+            <div class="o-spread"><span>只显示附魔</span><span class="ore-toggle on"></span></div>
+            <div class="o-spread"><span>隐藏空格</span><span class="ore-toggle"></span></div>
+            <div class="o-seg"><span class="on">全部</span><span>武器</span><span>方块</span></div>
+          </div>
+        </div>
+        <div class="ctxbox o-well" data-context="demo-ctx"><span class="o-dim">在这里点右键</span></div>
+        <div class="o-context" id="demo-ctx">
+          <div class="item"><span>重命名</span><span class="k">F2</span></div>
+          <div class="item"><span>复制</span><span class="k">Ctrl+C</span></div>
+          <div class="sep"></div>
+          <div class="item"><span class="o-faint">删除</span></div>
+        </div>
+        <div class="o-well" style="position: relative; height: 46px; overflow: hidden">
+          <div class="o-drawer" style="position: absolute; right: 0; top: 0; bottom: 0; width: 78px; padding: 4px; background: var(--o-tile); border-left: 1px solid var(--o-line-strong)">
+            <div class="o-drawer-handle" title="收起 / 展开"><img class="o-ico" src="../textures/icons/forward.png"></div>
+            <div class="o-caps">统计</div>
+            <div class="o-spread"><span>史诗</span><span>3</span></div>
+          </div>
+          <div class="o-center" style="height: 100%"><span class="o-faint">点右边的手柄折叠</span></div>
+        </div>
+      </div>
+
+      <div class="card o-tile">
+        <h3><img class="o-ico" src="../textures/icons/grid.png"><span>卡片 · Tile</span></h3>
+        <span class="hint">.o-tile 加 .hot 可点，加 .sel 呈选中态</span>
+        <div class="o-auto" style="--min: 70px">
+          <div class="o-tile hot" tabindex="0" style="padding: 6px"><div class="o-center"><img class="o-ico x2" src="../textures/icons/anvil.png"><span>锻造台</span></div></div>
+          <div class="o-tile hot sel" tabindex="0" style="padding: 6px"><div class="o-center"><img class="o-ico x2" src="../textures/icons/bellows.png"><span>熔炉</span></div></div>
+          <div class="o-tile hot" tabindex="0" style="padding: 6px"><div class="o-center"><img class="o-ico x2" src="../textures/icons/cauldron.png"><span>炼药锅</span></div></div>
+        </div>
+        <div class="o-stack" style="--gap: 3px">
+          <div class="o-spread"><span class="o-dim">伤害</span><span>12</span></div>
+          <div class="o-spread"><span class="o-dim">耐久</span><span>1561 / 1561</span></div>
+          <div class="o-spread"><span class="o-dim">附魔</span><span>锋利 V</span></div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="card o-tile">
+      <h3><img class="o-ico" src="../textures/icons/book.png"><span>怎么接着写</span></h3>
+      <div class="o-cols">
+        <div class="o-stack" style="--gap: 4px">
+          <span class="o-caps">页面放在哪</span>
+          <span class="o-dim">src/main/resources/assets/oriel/ui/&lt;名字&gt;.html</span>
+          <span class="o-dim">URL 就是 oriel:ui/&lt;名字&gt;.html</span>
+        </div>
+        <div class="o-stack" style="--gap: 4px">
+          <span class="o-caps">需要 Java 吗</span>
+          <span class="o-dim">不用。&lt;html data-oriel-shell&gt; 就够。</span>
+          <span class="o-dim">要逻辑再注册 PageControllers。</span>
+        </div>
+      </div>
+      <div class="line">
+        <div class="ore-btn secondary m-ripple" data-go="catalog" tabindex="0">去看完整控件目录</div>
+        <div class="ore-btn m-ripple" data-go="gallery" tabindex="0">回首页</div>
+        <div class="ore-btn destructive m-ripple" data-action="close" tabindex="0">关闭这一页</div>
+      </div>
+    </div>
+
+  </div>
+  </div>
+
+</div>
+</div>
+</body>
+</html>
