@@ -116,10 +116,15 @@ public final class EntityPortrait {
             body.yBodyRot = 180.0F - pose.yaw() - leanYaw;
             body.yBodyRotO = body.yBodyRot;
             if (pose.followMouse() || !posed) {
-                body.setYRot(-leanYaw);
-                body.setXRot(-leanPitch);
-                body.yHeadRot = -leanYaw;
-                body.yHeadRotO = body.yHeadRot;
+                // The head turns relative to the body, as vanilla's InventoryScreen does: it sets the body to
+                // 180 + half the gaze and the head to 180 + the whole gaze, so the head is ahead of the body by the
+                // other half. Setting the head to -leanYaw instead, near 0, left it 180 degrees about from the body
+                // and the player was drawn looking backwards.
+                float headYaw = body.yBodyRot - leanYaw;
+                body.setYRot(headYaw);
+                body.setXRot(-2 * leanPitch);
+                body.yHeadRot = headYaw;
+                body.yHeadRotO = headYaw;
             }
             // The limbs swing at the pose's speed; display entities never tick, so their clock is the wall clock.
             body.walkAnimation.setSpeed(pose.walk());

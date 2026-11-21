@@ -8,19 +8,21 @@
    data-oriel-shell 让纯 HTML/CSS 页面也拿到 Shell 的共享行为（跳页 / 关窗 / 主题 / 控件自动接线）。 */
 .page { padding: 8px; display: flex; flex-direction: column; gap: 8px; }
 
-.hero { position: relative; display: flex; align-items: center; gap: 10px; padding: 10px 12px; overflow: hidden;
+.showcase { position: relative; display: flex; align-items: center; gap: 10px; padding: 10px 12px; overflow: hidden;
     background-image: radial-gradient(ellipse at 6% 40%, color-mix(in srgb, var(--o-accent) 24%, transparent), transparent 58%);
-    animation: m-pop var(--m-slow) var(--m-spring) both; }
-.hero .mark { flex: none; width: 36px; height: 36px; image-rendering: pixelated; }
-.hero .txt { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 3px; }
-.hero .name { display: flex; align-items: baseline; gap: 8px; }
-.hero .name b { font-weight: normal; color: var(--o-text); white-space: nowrap; }
-.hero .tag { flex: none; padding: 0 4px; color: var(--o-accent-strong); border: 1px solid color-mix(in srgb, var(--o-accent) 55%, transparent); }
-.hero .line { color: var(--o-text-dim); line-height: 11px; }
-.hero .keys { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; color: var(--o-text-dim); }
+    animation: m-pop var(--m-slow) var(--m-spring) both;
+}
+.showcase .mark { flex: none; width: 36px; height: 36px; image-rendering: pixelated; }
+.showcase .txt { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.showcase .name { display: flex; align-items: baseline; gap: 8px; }
+.showcase .name b { font-weight: normal; color: var(--o-text); white-space: nowrap; }
+.showcase .tag { flex: none; padding: 0 4px; color: var(--o-accent-strong); border: 1px solid color-mix(in srgb, var(--o-accent) 55%, transparent); }
+.showcase .line { color: var(--o-text-dim); line-height: 11px; }
+.showcase .keys { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; color: var(--o-text-dim); }
 
 .card { min-width: 0; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px;
-    animation: m-pop var(--m-slow) var(--m-spring) both; }
+    animation: m-pop var(--m-slow) var(--m-spring) both;
+}
 .card h3 { margin: 0; display: flex; align-items: center; gap: 5px; font-weight: normal; color: var(--o-text); }
 .card h3 .o-ico { -mc-tint: var(--o-accent-strong); }
 .card .hint { color: var(--o-text-faint); line-height: 10px; }
@@ -70,7 +72,7 @@
   <div class="o-body">
   <div class="page o-scroll">
 
-    <div class="hero o-tile">
+    <div class="showcase o-tile">
       <img class="mark" src="../textures/ui/emblem.png">
       <div class="txt">
         <div class="name"><b class="o-h2">Oriel 示例页</b><span class="tag">1.20.1 Forge</span></div>

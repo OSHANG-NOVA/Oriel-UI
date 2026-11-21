@@ -15,6 +15,7 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.navigation.ScreenRectangle;
 import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FormattedCharSequence;
@@ -50,6 +51,30 @@ public final class McGui {
     private final Matrix3x2f shifted = new Matrix3x2f();
     /** The scissor currently pushed, kept so {@link #scissor()} can answer without asking vanilla. */
     private @Nullable ScreenRectangle clip;
+    /**
+     * A buffer of this GUI's own. {@link Tesselator#getBuilder()} is not usable here: it is the very builder the
+     * frame's {@code MultiBufferSource.immediate} hands to {@code GuiGraphics}, so beginning a batch on it throws away
+     * whatever vanilla had queued (text, item icons, sprites) and, worse, merges the two vertex streams into one draw
+     * whose format belongs to whichever call ran last. Every texture region then became slanted quads and detached
+     * bands. A separate builder cannot collide; {@link #flushVanilla()} first so vanilla's queued vertices are drawn
+     * with their own shader and format before this batch starts.
+     */
+    private final BufferBuilder own = new BufferBuilder(786432);
+    /**
+     * The virtual texture size {@link #blit} hands to vanilla. {@code GuiGraphics.blit} takes its texture coordinates
+     * in whole texels, so a slice boundary that lands on a fraction of the real image (four slices of an 8 px source,
+     * 2 px of a 12 px one) would be rounded away at 1:1. Measuring against a large square keeps every fraction an
+     * integer: a u of 0.16666667 comes back as exactly 170.67/1024 and 1024 divides by 3 badly but not by 4, 8 or 12,
+     * which are the divisors border-image actually uses.
+     */
+    private static final int TEX = 1008;
+    /**
+     * How far in front of the GUI plane a 3D picture is drawn, in GUI px: vanilla's own
+     * {@code InventoryScreen.renderEntityInInventory} uses 50, and for the same reason. The page's quads are drawn
+     * at z = 0 with depth testing on, so a model centred on z = 0 loses everything behind that plane.
+     */
+    private static final float SCENE_DEPTH = 50F;
+    static final boolean DIAG = System.getProperty("oriel.debug.blit") != null;
 
     public McGui(GuiGraphics g) {
         this(g, 0, 0);
@@ -137,7 +162,7 @@ public final class McGui {
     public void fill(Matrix3x2fc pose, float x0, float y0, float x1, float y1, int color, ScreenRectangle bounds,
                      @Nullable ScreenRectangle scissor) {
         Matrix3x2fc m = at(pose);
-        BufferBuilder b = beginColored();
+        BufferBuilder b = begin(GameRenderer::getPositionColorShader, DefaultVertexFormat.POSITION_COLOR);
         addColor(b, m, x0, y0, color);
         addColor(b, m, x0, y1, color);
         addColor(b, m, x1, y1, color);
@@ -150,20 +175,38 @@ public final class McGui {
                      float u0, float v0, float u1, float v1, int color, ScreenRectangle bounds,
                      @Nullable ScreenRectangle scissor) {
         Matrix3x2fc m = at(pose);
-        RenderSystem.setShaderTexture(0, texture);
-        BufferBuilder b = Tesselator.getInstance().getBuilder();
-        b.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR_TEX);
-        addTex(b, m, x0, y1, u0, v1, color);
-        addTex(b, m, x0, y0, u0, v0, color);
-        addTex(b, m, x1, y0, u1, v0, color);
-        addTex(b, m, x1, y1, u1, v1, color);
-        BufferUploader.drawWithShader(b.end());
+        // Draw through vanilla's own blit path (innerBlit batches into RenderType.gui) instead of assembling a
+        // vertex buffer by hand. Hand-built textured quads came out as smeared leaves with POSITION_COLOR_TEX and
+        // as nothing at all with POSITION_TEX, while fill()/text()/items through GuiGraphics always drew right, so
+        // the hand-rolled path is what breaks; the 2D transform rides on the pose stack instead. UVs stay exact:
+        // they are handed over as offsets into a virtual TEX-pixel texture, which keeps every slice boundary
+        // (sx over 4, 8, 12 and 16) an integer.
+        int px = Math.round(x0), py = Math.round(y0);
+        int pw = Math.round(x1 - x0), ph = Math.round(y1 - y0);
+        if (pw <= 0 || ph <= 0) return;
+        if (DIAG) System.out.println("[blit] " + texture + " " + x0 + "," + y0 + " " + x1 + "," + y1 + " uv " + u0 + "," + v0 + " " + u1 + "," + v1 + " m=" + m.m00() + "," + m.m01() + "," + m.m10() + "," + m.m11() + "," + m.m20() + "," + m.m21());
+        boolean tinted = color != 0xFFFFFFFF;
+        if (tinted) {
+            RenderSystem.setShaderColor((color >> 16 & 0xFF) / 255f, (color >> 8 & 0xFF) / 255f,
+                    (color & 0xFF) / 255f, (color >>> 24) / 255f);
+        }
+        g.pose().pushPose();
+        g.pose().last().pose().set(m.m00(), m.m01(), 0, 0, m.m10(), m.m11(), 0, 0, 0, 0, 1, 0,
+                m.m20(), m.m21(), 0, 1);
+        g.blit(texture, px, py, pw, ph, Math.round(u0 * TEX), Math.round(v0 * TEX),
+                Math.round((u1 - u0) * TEX), Math.round((v1 - v0) * TEX), TEX, TEX);
+        g.pose().popPose();
+        if (tinted) {
+            // ColorModulator is read when the batch is drawn, so the tint has to be resolved before it is reset.
+            g.flush();
+            RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
+        }
     }
 
     /** Quads with a colour per vertex, 4 vertices each, already wound as vanilla's. */
     public void quads(Matrix3x2fc pose, float[] xy, int[] colors, ScreenRectangle bounds, @Nullable ScreenRectangle scissor) {
         Matrix3x2fc m = at(pose);
-        BufferBuilder b = beginColored();
+        BufferBuilder b = begin(GameRenderer::getPositionColorShader, DefaultVertexFormat.POSITION_COLOR);
         for (int v = 0; v < colors.length; v++) {
             addColor(b, m, xy[v * 2], xy[v * 2 + 1], colors[v]);
         }
@@ -237,9 +280,16 @@ public final class McGui {
         g.flush();
         PoseStack pose = g.pose();
         pose.pushPose();
-        // The picture's frame: its bottom-middle at the box's bottom-middle, y up, a block per `scale` GUI px.
-        pose.translate((left + right) / 2F, bottom, 0);
-        pose.scale(scale, -scale, -scale);
+        // The picture's frame, as 26.x's picture-in-picture pass built it and as Scene's drawers expect it: the
+        // origin in the middle of the box, y down (GUI space), a block per `scale` GUI px. A drawer moves its own
+        // origin to the bottom edge with Scene's translate and flips y and z itself (Scene.turn).
+        //
+        // The depth offset is vanilla's: InventoryScreen.renderEntityInInventory draws at translate(x, y, 50.0) so
+        // the model sits in front of the GUI plane. Without it the model straddles z = 0, the page's own quads have
+        // already written z = 0 into the depth buffer, and depth testing keeps only the front half -- a block came
+        // out as a flat blade and a cow as its own front silhouette.
+        pose.translate((left + right) / 2F, (top + bottom) / 2F, SCENE_DEPTH);
+        pose.scale(scale, scale, scale);
         RenderSystem.enableDepthTest();
         RenderSystem.depthMask(true);
         try {
@@ -272,22 +322,25 @@ public final class McGui {
         pose.scale(sx, sy, 1);
     }
 
-    private static BufferBuilder beginColored() {
-        RenderSystem.setShader(GameRenderer::getPositionColorShader);
-        BufferBuilder b = Tesselator.getInstance().getBuilder();
-        b.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
-        return b;
+    /**
+     * Start a batch on this GUI's private builder. Vanilla's queued vertices are flushed first: they were queued for
+     * its own shader and format, and drawing them afterwards would consume this batch's state instead.
+     */
+    private BufferBuilder begin(java.util.function.Supplier<ShaderInstance> shader, VertexFormat format) {
+        flushVanilla();
+        RenderSystem.setShader(shader);
+        own.begin(VertexFormat.Mode.QUADS, format);
+        return own;
+    }
+
+    /** Draw whatever vanilla queued on the frame's shared builder with the shader and format it queued for. */
+    private void flushVanilla() {
+        g.flush();
     }
 
     private static void addColor(BufferBuilder b, Matrix3x2fc m, float x, float y, int c) {
         b.vertex(m.m00() * x + m.m10() * y + m.m20(), m.m01() * x + m.m11() * y + m.m21(), 0)
                 .color((c >> 16 & 0xFF) / 255f, (c >> 8 & 0xFF) / 255f, (c & 0xFF) / 255f, (c >>> 24) / 255f).endVertex();
-    }
-
-    private static void addTex(BufferBuilder b, Matrix3x2fc m, float x, float y, float u, float v, int c) {
-        b.vertex(m.m00() * x + m.m10() * y + m.m20(), m.m01() * x + m.m11() * y + m.m21(), 0)
-                .color((c >> 16 & 0xFF) / 255f, (c >> 8 & 0xFF) / 255f, (c & 0xFF) / 255f, (c >>> 24) / 255f).uv(u, v)
-                .endVertex();
     }
 
     // ---- Panels, tooltips, the cursor ----

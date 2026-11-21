@@ -49,6 +49,8 @@ minecraft {
                 String only = project.findProperty('autopilot')?.toString()
                 if (only && only != 'true') property 'oriel.autopilot.only', only
                 if (only == 'example') args '--width', '1280', '--height', '720'
+                if (project.hasProperty('borderDebug')) property 'oriel.debug.border', 'true'
+                if (project.hasProperty('blitDebug')) property 'oriel.debug.blit', 'true'
             }
         }
     }

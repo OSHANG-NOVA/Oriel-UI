@@ -6,6 +6,7 @@ import com.mojang.math.Axis;
 import dev.oriel.engine.scene.SceneCamera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemDisplayContext;
@@ -61,17 +62,30 @@ public final class Scene {
         // 1.20.1's PoseStack takes a Quaternionf, not the read-only interface, so copy the caller's once, up front:
         // mutating it inside the frame would turn the entity a little more every time the picture is drawn.
         Quaternionf turn = rotation.get(new Quaternionf());
-        Quaternionf tiltRotation = cameraTilt == null ? null
-                : cameraTilt.get(new Quaternionf()).conjugate().rotateY((float) Math.PI);
+        // The camera orientation is dispatcher state rather than part of the pose, so the caller's is kept and put
+        // back around the draw. JOML's no-argument conjugate() mutates, and Quaternionfc has no such method at all.
+        // Vanilla's InventoryScreen.renderEntityInInventory conjugates the tilt the same way for 1.20.1.
+        Quaternionf camera = cameraTilt == null ? null : cameraTilt.conjugate(new Quaternionf());
         return new Scene((pose, buffers, picture) -> {
+            // The picture frame is the middle of the box, y down, a block per unit (see McGui.scene). Moving the origin
+            // to the bottom edge and up in it, then flipping z, is vanilla's InventoryScreen.renderEntityInInventory:
+            // it scales (size, size, -size) and its rotation carries the rotateZ(PI) that turns the model upright.
             pose.translate(dx, (picture.y1() - picture.y0()) / 2F / picture.scale() - up, 0);
+            pose.scale(1, 1, -1);
             pose.mulPose(turn);
-            // The camera looks along -Z; turn it to face the way the picture is seen from, as vanilla's GUI entity pass
-            // does. 26.x carried this in a CameraRenderState; 1.20.1 renders through the dispatcher, whose camera
-            // orientation is the frame's, so the entity is turned the other way instead.
-            if (tiltRotation != null) pose.mulPose(tiltRotation);
-            Minecraft.getInstance().getEntityRenderDispatcher().render(entity, 0, 0, 0, 0,
-                    DeltaTracker.current().getGameTimeDeltaPartialTick(false), pose, buffers, FULL_BRIGHT);
+            EntityRenderDispatcher dispatcher = Minecraft.getInstance().getEntityRenderDispatcher();
+            Quaternionf savedCamera = camera == null ? null : dispatcher.cameraOrientation().get(new Quaternionf());
+            if (camera != null) dispatcher.overrideCameraOrientation(camera);
+            // No getter for the flag, so this does as vanilla's InventoryScreen does: turn shadows off for the picture
+            // and on again after it, which is the state every other draw of the frame expects anyway.
+            dispatcher.setRenderShadow(false);
+            try {
+                dispatcher.render(entity, 0, 0, 0, 0, DeltaTracker.current().getGameTimeDeltaPartialTick(false),
+                        pose, buffers, FULL_BRIGHT);
+            } finally {
+                if (savedCamera != null) dispatcher.overrideCameraOrientation(savedCamera);
+                dispatcher.setRenderShadow(true);
+            }
         });
     }
 
