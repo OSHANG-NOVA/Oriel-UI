@@ -24,6 +24,7 @@ import org.joml.Matrix3x2f;
 import org.joml.Matrix3x2fc;
 import org.joml.Matrix4f;
 import org.jspecify.annotations.Nullable;
+import org.lwjgl.opengl.GL11;
 
 import java.util.List;
 
@@ -52,14 +53,21 @@ public final class McGui {
     /** The scissor currently pushed, kept so {@link #scissor()} can answer without asking vanilla. */
     private @Nullable ScreenRectangle clip;
     /**
-     * A buffer of this GUI's own. {@link Tesselator#getBuilder()} is not usable here: it is the very builder the
-     * frame's {@code MultiBufferSource.immediate} hands to {@code GuiGraphics}, so beginning a batch on it throws away
-     * whatever vanilla had queued (text, item icons, sprites) and, worse, merges the two vertex streams into one draw
-     * whose format belongs to whichever call ran last. Every texture region then became slanted quads and detached
-     * bands. A separate builder cannot collide; {@link #flushVanilla()} first so vanilla's queued vertices are drawn
-     * with their own shader and format before this batch starts.
+     * A buffer of this GUI's own, shared by every frame. {@link Tesselator#getBuilder()} is not usable here: it is the
+     * very builder the frame's {@code MultiBufferSource.immediate} hands to {@code GuiGraphics}, so beginning a batch
+     * on it throws away whatever vanilla had queued (text, item icons, sprites) and, worse, merges the two vertex
+     * streams into one draw whose format belongs to whichever call ran last. Every texture region then became slanted
+     * quads and detached bands. A separate builder cannot collide; {@link #flushVanilla()} first so vanilla's queued
+     * vertices are drawn with their own shader and format before this batch starts.
+     *
+     * <p>It is static because a {@code McGui} only lives for one frame: a builder per instance meant a fresh
+     * {@code MemoryTracker} allocation every frame, and nothing ever released the previous one, so the client ran out
+     * of memory after a few hundred frames. A holder class keeps the native allocation off the class initialiser and
+     * makes it happen on the render thread, on the first frame that draws something.
      */
-    private final BufferBuilder own = new BufferBuilder(786432);
+    private static final class Batch {
+        private static final BufferBuilder OWN = new BufferBuilder(786432);
+    }
     /**
      * The virtual texture size {@link #blit} hands to vanilla. {@code GuiGraphics.blit} takes its texture coordinates
      * in whole texels, so a slice boundary that lands on a fraction of the real image (four slices of an 8 px source,
@@ -290,6 +298,13 @@ public final class McGui {
         // out as a flat blade and a cow as its own front silhouette.
         pose.translate((left + right) / 2F, (top + bottom) / 2F, SCENE_DEPTH);
         pose.scale(scale, scale, scale);
+        // Each scene gets its own depth buffer contents, the way 26.x gave each picture its own framebuffer. The
+        // buffers are shared here, and a scene does not cover the whole screen, so whatever an earlier scene left
+        // behind stays in the depth buffer and occludes this one: forge.html's anvil, drawn on the stage before the
+        // result card, cut the iron sword in half. The page's 2D quads never write depth (they are drawn with depth
+        // testing off), so throwing the depth away costs nothing.
+        RenderSystem.clear(GL11.GL_DEPTH_BUFFER_BIT, Minecraft.ON_OSX);
+
         RenderSystem.enableDepthTest();
         RenderSystem.depthMask(true);
         try {
@@ -328,9 +343,20 @@ public final class McGui {
      */
     private BufferBuilder begin(java.util.function.Supplier<ShaderInstance> shader, VertexFormat format) {
         flushVanilla();
+        // Vanilla's flush leaves depth testing on (it disables it around endBatch and re-enables it after), and a 3D
+        // picture has meanwhile written depth at its own z, in front of the page plane. A 2D quad drawn at z = 0
+        // would then fail the depth test wherever a model was drawn and let the model show through cards painted
+        // after it, so the page's own batches always draw with depth testing off.
+        RenderSystem.disableDepthTest();
+        // Blending is a GL state, not part of the shader: the position_colour shader's blend block only describes
+        // the factors, and nothing is mixed while GL_BLEND is off. Vanilla toggles it around every innerFill and
+        // leaves it off, so a batch of our own has to turn it on or every translucent colour (gradients that fade
+        // to transparent, the spotlight, shadows) is written as an opaque block.
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
         RenderSystem.setShader(shader);
-        own.begin(VertexFormat.Mode.QUADS, format);
-        return own;
+        Batch.OWN.begin(VertexFormat.Mode.QUADS, format);
+        return Batch.OWN;
     }
 
     /** Draw whatever vanilla queued on the frame's shared builder with the shader and format it queued for. */
