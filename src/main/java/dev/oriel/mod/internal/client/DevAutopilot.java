@@ -989,6 +989,15 @@ public final class DevAutopilot {
         shoot(mc, "preset_inventory_light", () -> OrielClientCommands.preset("inventory"));
         steps.add(() -> dev.oriel.kit.Shell.setTheme("dark"));
 
+        // The template library: every bundled template asks for a newer Minecraft than this one, so each card shows the
+        // compatibility badge, and its drawer says as much while still offering "open" and "save".
+        shoot(mc, "preset_styles", () -> OrielClientCommands.preset("templates"));
+        onPage("a template's details", p -> p.click("#grid .card"));
+        pause(20);
+        grab(mc, "preset_styles_details", 5);
+        onPage("the preview of a template made for a newer version", p -> p.click("#d-open"));
+        pause(60);
+        grab(mc, "preset_styles_preview", 5);
     }
 
     /**

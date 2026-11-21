@@ -14,6 +14,7 @@ import dev.oriel.kit.Lang;
 import dev.oriel.kit.OrielKit;
 import dev.oriel.kit.Shell;
 import dev.oriel.kit.TemplateCatalog;
+import dev.oriel.kit.Versions;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -44,7 +45,12 @@ public final class StylesPreset implements PageControllers.Controller {
     private static final Set<String> FOLDED = new LinkedHashSet<>(List.of("old"));
 
     private record Template(String id, String title, String author, String source, String group, String fit, String date,
-                            List<String> tags, String desc, Element spec, Element card, int order, TemplateCatalog.Unmet locked) {}
+                            List<String> tags, String desc, Element spec, Element card, int order, List<TemplateCatalog.Unmet> compat) {
+        /** Written for a newer Minecraft or Oriel than this one: it opens anyway, and the card and details say so. */
+        boolean downgraded() {
+            return TemplateCatalog.forced(compat);
+        }
+    }
 
     private final boolean index;
     private Document doc;
@@ -164,11 +170,14 @@ public final class StylesPreset implements PageControllers.Controller {
             for (Element field : e.querySelectorAll("[data-template-field]")) {
                 Dom.text(field, field.getAttribute("data-template-field").equals("category") ? text.category() : text.status());
             }
-            TemplateCatalog.Unmet locked = TemplateCatalog.unmet(meta, doc.host().libraryVersion(), doc.host().gameVersion());
+            // A template asks for the versions it was checked against, not the versions it can run on: on an older
+            // game every bundled template would be refused, which leaves the whole library unusable. They are opened
+            // and marked instead, and only a page that then fails to load is a real failure (TemplateCatalog.forced).
+            List<TemplateCatalog.Unmet> compat = TemplateCatalog.unmetAll(meta, doc.host().libraryVersion(), doc.host().gameVersion());
             Template t = new Template(id, text.name(),
                     str(meta, "author"), source, group, TemplateCatalog.fit(meta), str(meta, "date"),
-                    tagsOf(id, source, text.tags()), text.description(), e, null, order++, locked);
-            templates.add(new Template(t.id, t.title, t.author, t.source, t.group, t.fit, t.date, t.tags, t.desc, t.spec, card(t), t.order, t.locked));
+                    tagsOf(id, source, text.tags()), text.description(), e, null, order++, compat);
+            templates.add(new Template(t.id, t.title, t.author, t.source, t.group, t.fit, t.date, t.tags, t.desc, t.spec, card(t), t.order, t.compat));
         }
         for (TemplateCatalog.Category c : TemplateCatalog.categories()) {
             categoryNames.put(c.key(), c.name(doc.host().language()));
@@ -253,11 +262,13 @@ public final class StylesPreset implements PageControllers.Controller {
         boolean official = t.source.equals("official");
         Dom.text(badge, Lang.t(doc, official ? "oriel.ui.styles.badge.official" : t.source.equals("legacy") ? "oriel.ui.styles.badge.legacy" : "oriel.ui.styles.badge.community"));
         badge.toggleClass("official", official);
-        if (t.locked != null) {
-            Dom.text(badge, Lang.t(doc, "oriel.ui.styles.badge.locked"));
+        // A template made for a newer version still opens here, so it keeps its full cover: only the badge turns amber
+        // (.badge.locked) instead of the whole card going dim (.card.locked).
+        if (t.downgraded()) {
+            Dom.text(badge, Lang.t(doc, "oriel.ui.styles.badge.compat"));
             badge.toggleClass("official", false);
             badge.addClass("locked");
-            card.addClass("locked");
+            card.setAttribute("title", t.title + " · " + t.author + " · " + Lang.t(doc, "oriel.ui.styles.badge.compat"));
         }
         Dom.text(Dom.query(card, ".meta b"), t.title);
         Dom.query(card, ".by span").setAttribute("lang", "zh");
@@ -411,9 +422,14 @@ public final class StylesPreset implements PageControllers.Controller {
 
     // ---- Details ----
 
-    /** "Oriel >=0.12.0": what a locked template asks for. */
-    private static String needs(TemplateCatalog.Unmet u) {
-        return (u.what().equals("minecraft") ? "Minecraft " : "Oriel ") + u.range();
+    /** "Oriel 0.12+ · Minecraft 26.1+": what a downgraded template was written for, as the fit line reads it. */
+    private static String needs(List<TemplateCatalog.Unmet> unmet) {
+        StringBuilder text = new StringBuilder();
+        for (TemplateCatalog.Unmet u : unmet) {
+            if (!text.isEmpty()) text.append(" · ");
+            text.append(u.what().equals("minecraft") ? "Minecraft " : "Oriel ").append(Versions.describe(u.range()));
+        }
+        return text.toString();
     }
 
     private void openDetails(Template t) {
@@ -428,9 +444,12 @@ public final class StylesPreset implements PageControllers.Controller {
         Dom.text(Dom.byId(doc, "d-ver"), t.fit);
         Dom.text(Dom.byId(doc, "d-stamp"), t.date);
         Dom.text(Dom.byId(doc, "d-desc"), t.desc);
-        Dom.text(Dom.byId(doc, "d-note"), t.locked == null ? "" : Lang.t(doc, "oriel.ui.styles.drawer.locked", needs(t.locked), t.locked.have()));
-        Dom.byId(doc, "d-open").toggleClass("disabled", t.locked != null);
-        Dom.byId(doc, "d-save").toggleClass("disabled", t.locked != null);
+        // Opens and saves either way; the note only says what this port could not match, so nothing is a dead end.
+        Dom.text(Dom.byId(doc, "d-note"), t.downgraded()
+                ? Lang.t(doc, "oriel.ui.styles.drawer.compat", needs(t.compat), doc.host().gameVersion())
+                : "");
+        Dom.byId(doc, "d-open").toggleClass("disabled", false);
+        Dom.byId(doc, "d-save").toggleClass("disabled", false);
         Element tagList = Dom.byId(doc, "d-tags");
         tagList.removeAllChildren();
         for (String name : t.tags) {
@@ -499,7 +518,7 @@ public final class StylesPreset implements PageControllers.Controller {
     }
 
     private void preview(Template t) {
-        if (t == null || t.locked != null) return;
+        if (t == null) return;
         returnTo = t.id;
         rememberPlace();
         Shell.go(doc, TemplateCatalog.page(t.id), "forward");
@@ -507,7 +526,7 @@ public final class StylesPreset implements PageControllers.Controller {
 
     /** Saves a copy into the player's folder; a template already saved opens its copy instead. */
     private void save(Template t) {
-        if (t == null || t.locked != null) return;
+        if (t == null) return;
         if (saved.contains(t.id)) {
             returnTo = t.id;
             rememberPlace();

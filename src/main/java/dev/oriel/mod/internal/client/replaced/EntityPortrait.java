@@ -126,6 +126,15 @@ public final class EntityPortrait {
                 body.yHeadRot = headYaw;
                 body.yHeadRotO = headYaw;
             }
+            // 1.20.1 renders through the live entity and LivingEntityRenderer interpolates the head with
+            // Mth.lerp(partialTick, xRotO, xRot) and Mth.rotLerp(partialTick, yHeadRotO, yHeadRot). The pose above is
+            // this frame's value, so the previous-frame fields have to be the same or the partial tick swings the head
+            // between the two every frame - a nod, without the mouse moving. Vanilla's InventoryScreen only avoids it
+            // by passing partialTick 1.0F; here it is the real partial tick, so the fields are levelled instead.
+            body.xRotO = body.getXRot();
+            body.yRotO = body.getYRot();
+            body.yHeadRotO = body.yHeadRot;
+            body.yBodyRotO = body.yBodyRot;
             // The limbs swing at the pose's speed; display entities never tick, so their clock is the wall clock.
             body.walkAnimation.setSpeed(pose.walk());
             body.walkAnimation.update(pose.walk(), 1F);
@@ -172,6 +181,11 @@ public final class EntityPortrait {
                 body.yHeadRot = 0F;
                 body.yHeadRotO = 0F;
             }
+            // Same as draw: the pose is this frame's value, so the interpolation endpoints must agree.
+            body.xRotO = body.getXRot();
+            body.yRotO = body.getYRot();
+            body.yHeadRotO = body.yHeadRot;
+            body.yBodyRotO = body.yBodyRot;
             body.walkAnimation.setSpeed(walk);
             body.walkAnimation.update(walk, 1F);
             if (entity.getId() < 0) body.tickCount = (int) (Util.getMillis() / 50);

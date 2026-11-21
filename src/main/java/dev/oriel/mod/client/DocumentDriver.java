@@ -137,6 +137,10 @@ public final class DocumentDriver {
     private String language;
     private net.minecraft.locale.Language translationSource;
     private @Nullable ErrorPanel error;
+    /** The page failed once and is being shown again without its scripts; a second failure is the one reported. */
+    private boolean compatAttempt;
+    /** What this page asks for that this host does not have, said in the panel when compatibility mode fails too. */
+    private @Nullable String compatNote;
     private int width, height;
     private int uiScale;
     private double lastVanillaScale;
@@ -265,7 +269,17 @@ public final class DocumentDriver {
     }
 
     public void reload() {
+        // A reload is a fresh start: /oriel reload and a resource reload give the page its scripts back.
+        forgetCompatibility();
         load();
+    }
+
+    /** Back to a normal load: the next page gets its scripts, and a compatibility attempt is tried again if needed. */
+    private void forgetCompatibility() {
+        if (!compatAttempt && compatNote == null) return;
+        compatAttempt = false;
+        compatNote = null;
+        host.useScripts(true);
     }
 
     /**
@@ -341,7 +355,23 @@ public final class DocumentDriver {
             fail("Page not found: " + url, null);
             return;
         }
+        compatNote = null;
         document = Document.parse(host, url, source, data.json(), viewport());
+        if (document.error() != null && !compatAttempt) {
+            // Compatibility mode, once: the template asked for a newer game than this one and something in it does not
+            // run here, so the page is loaded again without its scripts. Plain HTML and CSS need no runtime, and a page
+            // that only loses its behaviour is still worth showing (and saying so) rather than replaced by a panel.
+            compatAttempt = true;
+            host.useScripts(false);
+            document.close();
+            document = Document.parse(host, url, source, data.json(), viewport());
+            if (document.error() != null) {
+                compatNote = dev.oriel.mod.internal.client.ClientText.t("oriel.page.compat.retried");
+                Constants.LOG.warn("Oriel: {} failed to load, with and without its scripts", name());
+            } else {
+                Constants.LOG.warn("Oriel: {} failed to load; retried without its scripts", name());
+            }
+        }
         if (state != null && document.controller() != null && url.equals(previousUrl)) {
             try {
                 document.controller().restoreState(state);
@@ -954,6 +984,7 @@ public final class DocumentDriver {
                 }
                 url = target;
                 html = null;
+                forgetCompatibility(); // another page, another try: this one gets its scripts
                 load();
                 // Another page in the same screen: the narrator reads its title, as for a screen that opens.
                 if (screen != null) screen.triggerImmediateNarration(false);
@@ -1017,7 +1048,7 @@ public final class DocumentDriver {
     /** Shows {@code error} instead of the page (the document already logged it through its host). */
     private void fail(String title, @Nullable Throwable e) {
         if (error != null) return;
-        error = ErrorPanel.of(title, e);
+        error = ErrorPanel.of(title, e, compatNote);
         setTextInput(false);
     }
 

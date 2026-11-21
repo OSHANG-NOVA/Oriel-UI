@@ -22,7 +22,16 @@ public record ErrorPanel(String title, List<String> details) {
     private static final String HINT = "Esc closes this screen; /oriel reload tries again.";
 
     public static ErrorPanel of(String title, @Nullable Throwable error) {
+        return of(title, error, null);
+    }
+
+    /**
+     * @param note a line about what was already tried, above the exception: a page that failed in compatibility mode
+     *             says so, so "it does not work" is not mistaken for "nobody tried anything".
+     */
+    public static ErrorPanel of(String title, @Nullable Throwable error, @Nullable String note) {
         List<String> details = new ArrayList<>();
+        if (note != null && !note.isBlank()) details.add(note);
         for (Throwable t = error; t != null && details.size() < MAX_LINES; t = t.getCause()) {
             details.add((t == error ? "" : "Caused by: ") + t);
             for (StackTraceElement f : t.getStackTrace()) {

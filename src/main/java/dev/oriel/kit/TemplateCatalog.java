@@ -146,15 +146,32 @@ public final class TemplateCatalog {
      * the given versions do not meet, or null when it can be used. A version the host does not know never fails.
      */
     public static Unmet unmet(JsonObject metadata, String oriel, String minecraft) {
-        if (!metadata.has("requires") || !metadata.get("requires").isJsonObject()) return null;
+        List<Unmet> all = unmetAll(metadata, oriel, minecraft);
+        return all.isEmpty() ? null : all.getFirst();
+    }
+
+    /** Every requirement the host does not meet, in the order {@link #unmet} checks them (its first one leads). */
+    public static List<Unmet> unmetAll(JsonObject metadata, String oriel, String minecraft) {
+        if (!metadata.has("requires") || !metadata.get("requires").isJsonObject()) return List.of();
         JsonObject requires = metadata.getAsJsonObject("requires");
-        String[][] checks = {{"oriel", oriel}, {"minecraft", minecraft}};
-        for (String[] check : checks) {
+        List<Unmet> fail = new ArrayList<>();
+        for (String[] check : new String[][]{{"oriel", oriel}, {"minecraft", minecraft}}) {
             if (!requires.has(check[0]) || !requires.get(check[0]).isJsonPrimitive()) continue;
             String range = requires.get(check[0]).getAsString();
-            if (!Versions.satisfies(check[1], range)) return new Unmet(check[0], range, check[1]);
+            if (!Versions.satisfies(check[1], range)) fail.add(new Unmet(check[0], range, check[1]));
         }
-        return null;
+        return List.copyOf(fail);
+    }
+
+    /**
+     * Whether a template is used anyway when it asks for versions this host does not have. The library is bundled with
+     * this port, so its templates open regardless - refusing them would leave every entry in the list unusable on
+     * 1.20.1 - and the caller says which requirement it went without instead of hiding the template. What is not
+     * relaxed is a page that fails to load: DocumentDriver tries it again without its scripts and reports it when that
+     * fails too (the "nothing works" panel).
+     */
+    public static boolean forced(List<Unmet> unmet) {
+        return unmet != null && !unmet.isEmpty();
     }
 
     /** What the template is made for, as shown: "Oriel 0.11+ · Minecraft 26.1+" (a part it does not ask for is left out). */

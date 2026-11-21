@@ -118,7 +118,8 @@
 .drawer .tags { display: flex; flex-wrap: wrap; gap: 3px; }
 .drawer .tags span { padding: 0 4px; height: 13px; display: flex; align-items: center; cursor: pointer; color: var(--o-text-dim); background: var(--o-well); border: 1px solid var(--o-line); white-space: nowrap; }
 .drawer .tags span:hover { color: var(--o-text); border-color: var(--o-text-faint); }
-.drawer .note { margin: 4px 10px 0; color: #b6f08f; min-height: 0; }
+.drawer .note { margin: 4px 10px 0; color: #ffc46a; min-height: 0; }
+        .drawer .head .note { margin: 0; line-height: 11px; }
 .drawer .more { display: none; margin: 8px 10px 0; flex-direction: column; gap: 5px; }
 .drawer .more.on { display: flex; }
 .drawer .more .mh { display: flex; align-items: center; gap: 4px; cursor: pointer; color: var(--o-text-faint); -mc-tint: var(--o-text-faint); border-top: 1px solid var(--o-line); padding-top: 5px; }
@@ -249,9 +250,9 @@
               <span class="dtitle o-h2" id="d-title"></span>
               <div class="by"><img id="d-avatar" src="../textures/ui/emblem.png"><span id="d-author"></span><em id="d-ver"></em></div>
               <span class="desc" id="d-desc"></span>
+              <div class="note" id="d-note"></div>
               <div class="tags" id="d-tags"></div>
             </div>
-            <div class="note" id="d-note"></div>
             <div class="more closed" id="d-more"><div class="mh" id="d-morehead"><img class="o-ico" src="../textures/icons/down.png"><span data-i18n="oriel.ui.styles.drawer.details">oriel.ui.styles.drawer.details</span></div><div class="spec" id="d-spec"></div></div>
           </div>
           <div class="dacts">

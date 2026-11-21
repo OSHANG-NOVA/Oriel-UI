@@ -43,6 +43,13 @@ public final class McHost implements Host {
     private @Nullable TokenBucket sounds;
     private double soundRate;
     private int errors;
+    /** Off while a page is loaded again in compatibility mode, so its scripts cannot throw a second time. */
+    private boolean scripts = true;
+
+    /** Whether pages of this driver run their scripts; the driver turns it off for its one compatibility attempt. */
+    public void useScripts(boolean on) {
+        this.scripts = on;
+    }
 
     public int errorCount() { return errors; }
 
@@ -126,6 +133,7 @@ public final class McHost implements Host {
         // normally get a runtime. The null branch stays as a safety net for a build that leaves the script runtime out:
         // Document.load treats a null runtime as "no scripts here" and runScript skips every script element, which
         // keeps every plain HTML/CSS page working instead of failing the whole document.
+        if (!scripts) return null;
         return Scripting.isRhinoAvailable() ? Scripting.rhino().apply(document) : null;
     }
 
